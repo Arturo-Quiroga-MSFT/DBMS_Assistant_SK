@@ -1,0 +1,25 @@
+# Reduce ACR build context size & speed up uploads
+.git
+.gitignore
+node_modules
+npm-debug.log
+yarn.lock
+pnpm-lock.yaml
+.DS_Store
+*.swp
+*.swo
+.vscode
+.env
+.env.*
+# Python venv (if accidentally copied higher up)
+.venv
+# Build outputs (rebuilt in image)
+dist
+coverage
+reports
+# Local databases or large assets
+*.db
+*.sqlite
+# Tests (not needed in runtime image)
+__tests__
+tests
