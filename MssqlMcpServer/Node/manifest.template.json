@@ -1,0 +1,26 @@
+{
+  "dxt_version": "0.1",
+  "name": "mssql-mcp-server",
+  "version": "1.0.0",
+  "description": "to do nl2sql operations",
+  "author": { "name": "Arturo Quiroga" },
+  "server": {
+    "type": "node",
+    "entry_point": "dist/index.js",
+    "mcp_config": {
+      "command": "node",
+      "args": [ "${__dirname}/dist/index.js" ],
+      "env": {
+        "SERVER_NAME": "${SERVER_NAME}",
+        "DATABASE_NAME": "${DATABASE_NAME}",
+        "READONLY": "${READONLY:-false}",
+        "AZURE_TOKEN_CREDENTIALS": "EnvironmentCredential",
+        "AZURE_CLIENT_ID": "${AZURE_CLIENT_ID}",
+        "AZURE_TENANT_ID": "${AZURE_TENANT_ID}",
+        "AZURE_CLIENT_SECRET": "${AZURE_CLIENT_SECRET}",
+        "AZURE_SUBSCRIPTION_ID": "${AZURE_SUBSCRIPTION_ID}"
+      }
+    }
+  },
+  "license": "MIT"
+}
