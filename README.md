@@ -1,6 +1,6 @@
 # DBMS Assistant SK
 
-![Architecture Diagram](docs/architecture-diagram.png)
+![Architecture Diagram](docs/architecture.png)
 
 ## Overview
 
