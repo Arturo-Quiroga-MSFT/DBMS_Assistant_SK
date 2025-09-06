@@ -1,3 +1,4 @@
+# ![DBMS Agent Architecture](./architecture-diagram.png)
 # Research Summary: SemanticKernel.Agents.DatabaseAgent
 
 ## What is this Repository?
@@ -6,18 +7,12 @@ This repository provides a Database Management System (DBMS) agent for the [Micr
 
 ## Key Features
 
-- **Natural Language to SQL (NL2SQL):**
   - Users can issue database management and query commands in natural language, which are translated into SQL queries by the agent.
-- **Multi-DBMS Support:**
   - Supports SQLite, SQL Server, MySQL, PostgreSQL, Oracle, OLEDB, and ODBC providers.
-- **Quality Assurance:**
   - Built-in filters (e.g., Query Relevancy Filter) use LLMs to ensure only relevant and safe queries are executed, reducing risk of data exposure or inefficient queries.
   - Custom filters can be implemented for additional safety or compliance needs.
-- **Schema Memorization:**
   - The agent memorizes database schema and relationships using vector embeddings, improving query accuracy and context awareness.
-- **Extensible and Containerized:**
   - Can be run as a Docker container (MCP Server), making deployment and integration easy.
-- **Integration with Semantic Kernel:**
   - Designed to work as a plugin/agent within the Semantic Kernel framework, supporting advanced AI-driven workflows.
 
 ## How Does it Work?
@@ -39,20 +34,12 @@ This repository provides a Database Management System (DBMS) agent for the [Micr
 
 ## Example Use Cases
 
-- Acting as a DBA via natural language: "List all users with admin privileges."
-- Generating analytics: "What was the total sales last quarter?"
-- Schema exploration: "Describe the structure of the Employees table."
-- Query rewriting and explanation.
 
 ## Security and Safety
 
-- The agent is designed with safety in mind, using LLM-based filters to prevent unintended or unsafe queries.
-- Supports custom quality assurance logic for compliance and governance.
 
 ## Deployment
 
-- Can be run as a Docker container (MCP Server) with environment variables for DB connection, LLM provider, and quality assurance settings.
-- Example Docker run command is provided in the repo's README.
 
 
 ## Steps to Test the Database Agent
@@ -106,6 +93,6 @@ This repository provides a Database Management System (DBMS) agent for the [Micr
 
 This solution enables AI-powered, natural language database management and analytics, making it easier for DBAs and other users to interact with SQL databases securely and efficiently. It is extensible, supports multiple DBMS backends, and is designed for integration with modern AI workflows.
 
----
 
 *This file summarizes the findings from research into the SemanticKernel.Agents.DatabaseAgent repository as of September 2025.*
+## RESEARCH_SUMMARY.md has been moved to the new dbms_agent_python directory.
