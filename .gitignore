@@ -372,3 +372,6 @@ appsettings.*.json
 .env
 .venv
 
+# Ignore VS Code extension subproject (not tracked in repo)
+MssqlMcpServer/vscode-extension-node/
+
