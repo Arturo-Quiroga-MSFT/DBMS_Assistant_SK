@@ -1,0 +1,116 @@
+name: Build & Test
+
+on:
+  push:
+    branches: [ "main" ]
+  pull_request:
+    branches: [ "main" ]
+
+jobs:
+  gpt-4o-mini:
+    uses: ./.github/workflows/execute_test_for_model.yml
+    secrets: inherit 
+    with:
+      continue-on-error: true
+      tag: gpt-4
+      completion: GPT4OMINI
+      embedding: TEXTEMBEDDINGADA002
+
+  gpt-41-mini:
+    needs: gpt-4o-mini
+    uses: ./.github/workflows/execute_test_for_model.yml
+    secrets: inherit 
+    with:
+      continue-on-error: true
+      tag: gpt-4
+      completion: GPT41MINI
+      embedding: TEXTEMBEDDINGADA002 
+
+  devstral:
+    needs: gpt-41-mini
+    uses: ./.github/workflows/execute_test_for_model.yml
+    secrets: inherit 
+    with:
+      continue-on-error: true
+      tag: mistral
+      completion: DEVSTRAL
+      embedding: NOMICEMBEDTEXT
+
+  magistral:
+    needs: devstral
+    uses: ./.github/workflows/execute_test_for_model.yml
+    secrets: inherit 
+    with:
+      continue-on-error: true
+      tag: mistral
+      completion: MAGISTRAL
+      embedding: NOMICEMBEDTEXT
+
+  phi4:
+    needs: magistral
+    uses: ./.github/workflows/execute_test_for_model.yml
+    secrets: inherit 
+    with:
+      continue-on-error: true
+      tag: phi
+      completion: PHI4
+      embedding: NOMICEMBEDTEXT
+
+  qwen2-5-coder:
+    needs: phi4
+    uses: ./.github/workflows/execute_test_for_model.yml
+    secrets: inherit 
+    with:
+      continue-on-error: true
+      tag: qwen2.5-coder
+      completion: QWEN25CODER
+      embedding: NOMICEMBEDTEXT
+
+  qwen3-8b:
+    needs: qwen2-5-coder
+    uses: ./.github/workflows/execute_test_for_model.yml
+    secrets: inherit 
+    with:
+      continue-on-error: true
+      tag: qwen3
+      completion: QWEN38B
+      embedding: NOMICEMBEDTEXT
+  
+  qwen3-14b:
+    needs: qwen3-8b
+    uses: ./.github/workflows/execute_test_for_model.yml
+    secrets: inherit 
+    with:
+      continue-on-error: true
+      tag: qwen3
+      completion: QWEN330B
+      embedding: NOMICEMBEDTEXT
+
+  qwen3-30b-a3b:
+    needs: qwen3-14b
+    uses: ./.github/workflows/execute_test_for_model.yml
+    secrets: inherit 
+    with:
+      continue-on-error: true
+      tag: qwen3
+      completion: QWEN330B
+      embedding: NOMICEMBEDTEXT
+
+  llama3-3:
+    needs: qwen3-8b
+    uses: ./.github/workflows/execute_test_for_model.yml
+    secrets: inherit 
+    with:
+      tag: llama
+      completion: LLAMA33
+      embedding: NOMICEMBEDTEXT
+
+  llama4:
+    needs: qwen3-30b-a3b
+    uses: ./.github/workflows/execute_test_for_model.yml
+    secrets: inherit 
+    with:
+      continue-on-error: true
+      tag: llama
+      completion: LLAMA4
+      embedding: NOMICEMBEDTEXT
