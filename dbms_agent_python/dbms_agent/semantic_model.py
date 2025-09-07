@@ -1,7 +1,9 @@
 # dbms_agent/semantic_model.py
 
 """
-Semantic Model Analysis: DDL/DML analysis, schema embedding, and vector DB integration (Azure AI Search or Cosmos DB).
+Semantic Model Analysis: DDL/DML analysis, schema embedding, and vector store integration.
+
+Note: Azure Cosmos DB is the selected and only backend for embedding storage (Azure AI Search option deprecated).
 """
 
 
@@ -13,17 +15,28 @@ from azure.cosmos import CosmosClient, PartitionKey
 class SemanticModelAnalyzer:
     def __init__(self, db_connection):
         self.db_connection = db_connection
-        # Cosmos DB config from environment variables
+        # Cosmos DB config from environment variables (lazy init)
         self.cosmos_endpoint = os.getenv('COSMOS_ENDPOINT')
         self.cosmos_key = os.getenv('COSMOS_KEY')
         self.cosmos_db = os.getenv('COSMOS_DATABASE', 'dbms_agent')
         self.cosmos_container = os.getenv('COSMOS_CONTAINER', 'schema_vectors')
+        self._cosmos_initialized = False
+        self.client = None
+        self.database = None
+        self.container = None
+
+    def _ensure_cosmos(self):
+        if self._cosmos_initialized:
+            return
+        if not self.cosmos_endpoint or not self.cosmos_key:
+            raise ValueError("COSMOS_ENDPOINT and COSMOS_KEY must be set for embedding storage.")
         self.client = CosmosClient(self.cosmos_endpoint, self.cosmos_key)
         self.database = self.client.create_database_if_not_exists(self.cosmos_db)
         self.container = self.database.create_container_if_not_exists(
             id=self.cosmos_container,
             partition_key=PartitionKey(path="/table_name")
         )
+        self._cosmos_initialized = True
 
     def analyze_schema(self):
         """Analyze DDL and DML, generate schema representation."""
@@ -36,6 +49,7 @@ class SemanticModelAnalyzer:
         if schema is None:
             schema = self.analyze_schema()
         # Placeholder: generate embeddings for each table/column
+        self._ensure_cosmos()
         for table in schema:
             embedding = self._generate_embedding(table)
             item = {

@@ -375,3 +375,5 @@ appsettings.*.json
 # Ignore VS Code extension subproject (not tracked in repo)
 MssqlMcpServer/vscode-extension-node/
 
+AQ_Work_Dir/
+deploy_aca_simple.sh

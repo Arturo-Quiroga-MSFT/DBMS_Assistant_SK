@@ -1,3 +1,8 @@
 # dbms_agent/__init__.py
 
-# This package contains the core modules for the DBMS agent solution.
+"""Core modules for the DBMS agent solution."""
+
+from .orchestrator import DBMSAgent  # noqa: F401
+
+__all__ = ["DBMSAgent"]
+

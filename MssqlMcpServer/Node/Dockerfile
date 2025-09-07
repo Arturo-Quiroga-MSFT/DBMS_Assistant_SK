@@ -32,5 +32,6 @@ RUN addgroup -S app && adduser -S app -G app && chown -R app:app /app
 USER app
 
 # No port exposed yet (MCP stdio). Expose later if adding HTTP/WS transport
+EXPOSE 8080
 
 ENTRYPOINT ["node", "dist/index.js"]
