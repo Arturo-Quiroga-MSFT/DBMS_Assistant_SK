@@ -26,6 +26,8 @@ import { ClientSecretCredential } from "@azure/identity";
 import { DescribeTableTool } from "./tools/DescribeTableTool.js";
 import { DiagnoseConnectionTool } from "./tools/DiagnoseConnectionTool.js";
 import { ListExternalUsersTool } from "./tools/ListExternalUsersTool.js";
+// Import newly added ListViewsTool (TypeScript will emit ListViewsTool.js on build)
+import { ListViewsTool } from "./tools/ListViewsTool.js";
 
 // MSSQL Database connection configuration
 // const credential = new DefaultAzureCredential();
@@ -113,6 +115,7 @@ const dropTableTool = new DropTableTool();
 const describeTableTool = new DescribeTableTool();
 const diagnoseConnectionTool = new DiagnoseConnectionTool();
 const listExternalUsersTool = new ListExternalUsersTool();
+const listViewsTool = new ListViewsTool();
 
 const server = new Server(
   {
@@ -218,8 +221,8 @@ preFlightIfEnabled();
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: isReadOnly
-    ? [listTableTool, readDataTool, describeTableTool, diagnoseConnectionTool, listExternalUsersTool]
-    : [insertDataTool, readDataTool, describeTableTool, updateDataTool, createTableTool, createIndexTool, dropTableTool, listTableTool, diagnoseConnectionTool, listExternalUsersTool],
+    ? [listTableTool, listViewsTool, readDataTool, describeTableTool, diagnoseConnectionTool, listExternalUsersTool]
+    : [insertDataTool, readDataTool, describeTableTool, updateDataTool, createTableTool, createIndexTool, dropTableTool, listTableTool, listViewsTool, diagnoseConnectionTool, listExternalUsersTool],
 }));
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
@@ -244,6 +247,9 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         break;
       case listTableTool.name:
         result = await listTableTool.run(args);
+        break;
+      case listViewsTool.name:
+        result = await listViewsTool.run(args);
         break;
       case dropTableTool.name:
         result = await dropTableTool.run(args);
@@ -439,7 +445,7 @@ function wrapToolRun(tool: { run: (...args: any[]) => Promise<any> }) {
   };
 }
 
-[insertDataTool, readDataTool, updateDataTool, createTableTool, createIndexTool, dropTableTool, listTableTool, describeTableTool, diagnoseConnectionTool, listExternalUsersTool].forEach(wrapToolRun);
+[insertDataTool, readDataTool, updateDataTool, createTableTool, createIndexTool, dropTableTool, listTableTool, listViewsTool, describeTableTool, diagnoseConnectionTool, listExternalUsersTool].forEach(wrapToolRun);
 
 // -----------------------
 // Optional HTTP bridge
@@ -471,8 +477,8 @@ function startHttpBridge() {
 
   const toolMap = new Map<string, { run: (args: any) => Promise<any> }>();
   const allTools = isReadOnly
-    ? [listTableTool, readDataTool, describeTableTool, diagnoseConnectionTool, listExternalUsersTool]
-    : [insertDataTool, readDataTool, describeTableTool, updateDataTool, createTableTool, createIndexTool, dropTableTool, listTableTool, diagnoseConnectionTool, listExternalUsersTool];
+    ? [listTableTool, listViewsTool, readDataTool, describeTableTool, diagnoseConnectionTool, listExternalUsersTool]
+    : [insertDataTool, readDataTool, describeTableTool, updateDataTool, createTableTool, createIndexTool, dropTableTool, listTableTool, listViewsTool, diagnoseConnectionTool, listExternalUsersTool];
   allTools.forEach(t => toolMap.set(t.name, t as any));
 
   const serverHttp = http.createServer(async (req, res) => {
