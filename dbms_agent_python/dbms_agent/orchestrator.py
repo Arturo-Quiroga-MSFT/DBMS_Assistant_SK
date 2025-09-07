@@ -97,13 +97,37 @@ class DBMSAgent:
         }
 
         try:
+            intent = self.nl2sql.classify_intent(question)
+            response["intent"] = intent
+            if intent == 'metadata':
+                # Provide a catalog summary without generating SQL
+                catalog = self.semantic.analyze_schema() or []
+                if not catalog:
+                    response["markdown"] = "Schema is empty or unavailable."
+                    return response
+                # Summarize tables/views with up to first 8 columns each
+                lines = ["### Database Catalog", "", "| Object | Type | Columns (sample) |", "| --- | --- | --- |"]
+                for item in catalog:
+                    name = item.get('name')
+                    otype = item.get('type')
+                    cols = item.get('columns') or []
+                    sample_cols = ", ".join(cols[:8]) + (" …" if len(cols) > 8 else "")
+                    lines.append(f"| {name} | {otype} | {sample_cols} |")
+                response["markdown"] = "\n".join(lines)
+                response["executed"] = False
+                response["mode"] = 'none'
+                return response
+
             tables = self.nl2sql.select_tables(question)
             response["tables"] = tables
             sql = self.nl2sql.generate_sql(question, tables)
             response["sql"] = sql
+            # Skip attempting execution if we have no tables or a placeholder query
+            if not tables or sql.strip().startswith("-- No tables"):
+                response["markdown"] = "No tables selected (schema unavailable or empty)."
+                return response
             if not self.nl2sql.apply_quality_filters(sql):
-                response["markdown"] = "Query rejected by quality filters."\
-                    " (Filters not yet implemented.)"
+                response["markdown"] = "Query rejected by quality filters." " (Filters not yet implemented.)"
                 return response
 
             # Prefer remote if explicitly requested
@@ -134,30 +158,44 @@ class DBMSAgent:
             return None
         try:
             tools = self.mcp_http.list_tools()
-            # Naive tool selection: look for a generic execution tool
-            candidate_names = [
-                "execute_sql", "executeSql", "run_query", "query", "execute_sql_query"
-            ]
+            # Explicitly prefer the read_data tool which enforces SELECT-only queries
             tool_name = None
-            for c in candidate_names:
-                if c in tools:
-                    tool_name = c
-                    break
+            if 'read_data' in tools:
+                tool_name = 'read_data'
+            else:
+                # Backward compatible fallbacks if naming differs in future
+                for alt in ("execute_sql", "executeSql", "run_query", "query", "execute_sql_query"):
+                    if alt in tools:
+                        tool_name = alt
+                        break
             if not tool_name:
-                # Fallback: first tool if any
-                if tools:
-                    tool_name = tools[0]
-                else:
-                    base_response["markdown"] = "Remote MCP has no tools to execute SQL."
-                    return base_response
+                base_response["markdown"] = "Remote MCP: no suitable read/execute tool found (expected 'read_data')."
+                return base_response
 
-            result = self.mcp_http.call_tool(tool_name, {"sql": sql})
+            # read_data expects argument key 'query'
+            arguments_key = 'query' if tool_name == 'read_data' else 'sql'
+            result = self.mcp_http.call_tool(tool_name, {arguments_key: sql})
             # Expect result to be either structured or simple string
             markdown = None
             rows = None
             if isinstance(result, dict):
-                markdown = result.get("markdown") or result.get("text") or str(result)
-                rows = result.get("row_count") or result.get("rows")
+                # Prefer returned message/data formatting
+                if result.get('success') and 'data' in result:
+                    # Render a lightweight markdown table for up to 20 rows
+                    data_rows = result['data']
+                    if isinstance(data_rows, list) and data_rows:
+                        headers = list(data_rows[0].keys())
+                        lines = ["| " + " | ".join(headers) + " |", "| " + " | ".join(["---"]*len(headers)) + " |"]
+                        for r in data_rows[:20]:
+                            lines.append("| " + " | ".join(str(r.get(h, '')) for h in headers) + " |")
+                        markdown = "\n".join(lines)
+                        rows = len(data_rows)
+                    else:
+                        markdown = result.get('message') or 'Query returned 0 rows.'
+                        rows = 0
+                else:
+                    markdown = result.get("markdown") or result.get("text") or result.get("message") or str(result)
+                    rows = result.get("row_count") or result.get("rows") or result.get('recordCount')
             else:
                 markdown = str(result)
             base_response.update({

@@ -1,6 +1,6 @@
 {
   "name": "mssql-mcp-server",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "main": "dist/index.js",
   "bin": {
     "mssql-mcp-server": "dist/index.js"

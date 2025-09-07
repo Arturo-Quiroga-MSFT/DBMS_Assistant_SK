@@ -31,10 +31,13 @@ class QueryExecutionAgent:
         """Execute SQL query and return results as a pandas DataFrame."""
         with self.connection.cursor() as cursor:
             cursor.execute(sql_query)
+            # If the statement produced no result set (e.g., comment or DDL),
+            # cursor.description will be None — return empty DataFrame gracefully.
+            if cursor.description is None:
+                return pd.DataFrame()
             columns = [column[0] for column in cursor.description]
             rows = cursor.fetchall()
-            df = pd.DataFrame.from_records(rows, columns=columns)
-        return df
+            return pd.DataFrame.from_records(rows, columns=columns)
 
     def format_response(self, results):
         """Format results for user consumption (e.g., markdown table)."""
