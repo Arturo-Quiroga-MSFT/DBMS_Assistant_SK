@@ -1,3 +1,7 @@
+import { ListFunctionsTool } from "./tools/ListFunctionsTool.js";
+import { ListDatabasesTool } from "./tools/ListDatabasesTool.js";
+const listFunctionsTool = new ListFunctionsTool();
+const listDatabasesTool = new ListDatabasesTool();
 #!/usr/bin/env node
 
 
@@ -39,6 +43,9 @@ import { DiagnoseConnectionTool } from "./tools/DiagnoseConnectionTool.js";
 import { ListExternalUsersTool } from "./tools/ListExternalUsersTool.js";
 // Import newly added ListViewsTool (TypeScript will emit ListViewsTool.js on build)
 import { ListViewsTool } from "./tools/ListViewsTool.js";
+import { ChangeDatabaseTool } from "./tools/ChangeDatabaseTool.js";
+import { ListSchemasTool } from "./tools/ListSchemasTool.js";
+import { ShowSchemaTool } from "./tools/ShowSchemaTool.js";
 
 // MSSQL Database connection configuration
 // const credential = new DefaultAzureCredential();
@@ -145,6 +152,10 @@ const diagnoseConnectionTool = new DiagnoseConnectionTool();
 const listExternalUsersTool = new ListExternalUsersTool();
 const listViewsTool = new ListViewsTool();
 
+const changeDatabaseTool = new ChangeDatabaseTool();
+const listSchemasTool = new ListSchemasTool();
+const showSchemaTool = new ShowSchemaTool();
+
 const server = new Server(
   {
     name: "mssql-mcp-server",
@@ -249,9 +260,21 @@ preFlightIfEnabled();
 
 server.setRequestHandler(ListToolsRequestSchema, async () => ({
   tools: isReadOnly
-    ? [listTableTool, listViewsTool, readDataTool, describeTableTool, diagnoseConnectionTool, listExternalUsersTool]
-    : [insertDataTool, readDataTool, describeTableTool, updateDataTool, createTableTool, createIndexTool, dropTableTool, listTableTool, listViewsTool, diagnoseConnectionTool, listExternalUsersTool],
+    ? [
+        listTableTool, listViewsTool, readDataTool, describeTableTool, diagnoseConnectionTool, listExternalUsersTool,
+        changeDatabaseTool, listSchemasTool, showSchemaTool, listFunctionsTool, listDatabasesTool
+      ]
+    : [
+        insertDataTool, readDataTool, describeTableTool, updateDataTool, createTableTool, createIndexTool, dropTableTool, listTableTool, listViewsTool, diagnoseConnectionTool, listExternalUsersTool,
+        changeDatabaseTool, listSchemasTool, showSchemaTool, listFunctionsTool, listDatabasesTool
+      ],
 }));
+      case listFunctionsTool.name:
+        result = await listFunctionsTool.run(args);
+        break;
+      case listDatabasesTool.name:
+        result = await listDatabasesTool.run(args);
+        break;
 
 server.setRequestHandler(CallToolRequestSchema, async (request) => {
   const { name, arguments: args } = request.params;
@@ -296,6 +319,15 @@ server.setRequestHandler(CallToolRequestSchema, async (request) => {
         break;
       case listExternalUsersTool.name:
         result = await listExternalUsersTool.run(args || {});
+        break;
+      case changeDatabaseTool.name:
+        result = await changeDatabaseTool.run(args);
+        break;
+      case listSchemasTool.name:
+        result = await listSchemasTool.run(args);
+        break;
+      case showSchemaTool.name:
+        result = await showSchemaTool.run(args);
         break;
       default:
         return {
@@ -473,7 +505,7 @@ function wrapToolRun(tool: { run: (...args: any[]) => Promise<any> }) {
   };
 }
 
-[insertDataTool, readDataTool, updateDataTool, createTableTool, createIndexTool, dropTableTool, listTableTool, listViewsTool, describeTableTool, diagnoseConnectionTool, listExternalUsersTool].forEach(wrapToolRun);
+[insertDataTool, readDataTool, updateDataTool, createTableTool, createIndexTool, dropTableTool, listTableTool, listViewsTool, describeTableTool, diagnoseConnectionTool, listExternalUsersTool, changeDatabaseTool, listSchemasTool, showSchemaTool, listFunctionsTool, listDatabasesTool].forEach(wrapToolRun);
 
 // -----------------------
 // Optional HTTP bridge

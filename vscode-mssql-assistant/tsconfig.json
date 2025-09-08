@@ -8,7 +8,9 @@
     "rootDir": "src",
     "strict": true,
     "esModuleInterop": true,
-    "skipLibCheck": true
+  "skipLibCheck": true,
+  "declaration": true,
+  "emitDeclarationOnly": false
   },
   "include": ["src"],
   "exclude": ["node_modules", ".vscode-test"]

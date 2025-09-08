@@ -85,7 +85,17 @@ export async function activate(context: vscode.ExtensionContext) {
     if (client) { vscode.window.showInformationMessage('MCP server already started'); return; }
     const serverDir = path.join(context.extensionPath, '..', 'MssqlMcpServer', 'Node');
     const serverEntry = path.join(serverDir, 'dist', 'index.js');
-    client = new McpClient('node', [serverEntry], serverDir);
+    // Read config from VS Code settings
+    const config = vscode.workspace.getConfiguration('mssqlAssistant');
+    const env: NodeJS.ProcessEnv = {
+      ...process.env,
+      SERVER_NAME: config.get('server') || '',
+      DATABASE_NAME: config.get('database') || '',
+      AZURE_CLIENT_ID: config.get('clientId') || '',
+      AZURE_CLIENT_SECRET: config.get('clientSecret') || '',
+      AZURE_TENANT_ID: config.get('tenantId') || ''
+    };
+    client = new McpClient('node', [serverEntry], serverDir, env);
     try {
       await client.start();
       vscode.window.showInformationMessage('MSSQL MCP server connected');

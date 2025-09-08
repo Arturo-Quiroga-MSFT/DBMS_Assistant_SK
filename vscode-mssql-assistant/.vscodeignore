@@ -1,0 +1,12 @@
+src/
+scripts/
+**/*.map
+node_modules/**/test/**
+node_modules/**/docs/**
+node_modules/**/examples/**
+node_modules/**/README.md
+tsconfig.json
+# Include essential docs explicitly (negate rules if broad patterns added later)
+!LICENSE
+!CHANGELOG.md
+!resources/logo.png

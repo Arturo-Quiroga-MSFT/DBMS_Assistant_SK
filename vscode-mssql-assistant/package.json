@@ -3,13 +3,13 @@
   "displayName": "MSSQL RDBMS Assistant",
   "description": "MSSQL MCP integration with tool invocation & table explorer. Author: Arturo Quiroga, Sr. Azure AI Cloud Solutions Architect for Partners, Microsoft Americas.",
   "author": "Arturo Quiroga (Sr. Azure AI Cloud Solutions Architect for Partners, Microsoft Americas)",
-  "version": "0.0.1",
+  "version": "1.0.0",
   "publisher": "your-publisher-id",
   "repository": {
     "type": "git",
     "url": "https://github.com/Arturo-Quiroga-MSFT/DBMS_Assistant_SK"
   },
-  "icon": "resources/database.png",
+  "icon": "resources/logo.png",
   "engines": { "vscode": ">=1.85.0" },
   "categories": ["Other"],
   "activationEvents": [],
@@ -22,21 +22,59 @@
     ],
     "views": {
       "explorer": [
-        { "id": "mssqlAssistant.tables", "name": "MSSQL Tables", "icon": "resources/database.svg" }
+  { "id": "mssqlAssistant.tables", "name": "MSSQL Tables", "icon": "resources/logo.png" }
       ]
+    },
+    "configuration": {
+      "type": "object",
+      "title": "MSSQL MCP Server Connection",
+      "properties": {
+        "mssqlAssistant.server": {
+          "type": "string",
+          "default": "",
+          "description": "SQL Server hostname or address (e.g. myserver.database.windows.net)"
+        },
+        "mssqlAssistant.database": {
+          "type": "string",
+          "default": "",
+          "description": "Default database name to connect to"
+        },
+        "mssqlAssistant.clientId": {
+          "type": "string",
+          "default": "",
+          "description": "Azure AD Client ID (for managed identity or service principal)"
+        },
+        "mssqlAssistant.clientSecret": {
+          "type": "string",
+          "default": "",
+          "description": "Azure AD Client Secret (for service principal, optional if using managed identity)",
+          "markdownDescription": "Azure AD Client Secret (for service principal, optional if using managed identity). **Do not commit secrets to source control.**"
+        },
+        "mssqlAssistant.tenantId": {
+          "type": "string",
+          "default": "",
+          "description": "Azure AD Tenant ID (for service principal, optional if using managed identity)"
+        }
+      }
     }
   },
   "scripts": {
-    "build": "tsc -p .",
-    "watch": "tsc -w -p .",
-    "package": "vsce package",
+    "compile": "tsc -p . --emitDeclarationOnly",
+    "bundle": "esbuild src/extension.ts --bundle --platform=node --external:vscode --outfile=dist/extension.js --sourcemap --format=cjs",
+    "build": "npm run bundle && npm run compile",
+    "watch": "esbuild src/extension.ts --bundle --platform=node --external:vscode --outfile=dist/extension.js --sourcemap --format=cjs --watch",
+    "package": "npm run build && vsce package",
+    "release:patch": "node scripts/release.js patch",
+    "release:minor": "node scripts/release.js minor",
+    "release:major": "node scripts/release.js major",
     "postinstall": "node scripts/ensure-icon.js"
   },
   "devDependencies": {
     "typescript": "^5.5.0",
     "@types/node": "^18.19.0",
     "@types/vscode": "^1.85.0",
-    "@vscode/vsce": "^3.0.0"
+    "@vscode/vsce": "^3.0.0",
+    "esbuild": "^0.23.0"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0"
