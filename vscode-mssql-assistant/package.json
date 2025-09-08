@@ -1,9 +1,15 @@
 {
   "name": "vscode-mssql-assistant",
   "displayName": "MSSQL RDBMS Assistant",
-  "description": "Use the MSSQL MCP Server from inside VS Code with tool invocation and a table explorer.",
+  "description": "MSSQL MCP integration with tool invocation & table explorer. Author: Arturo Quiroga, Sr. Azure AI Cloud Solutions Architect for Partners, Microsoft Americas.",
+  "author": "Arturo Quiroga (Sr. Azure AI Cloud Solutions Architect for Partners, Microsoft Americas)",
   "version": "0.0.1",
   "publisher": "your-publisher-id",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/Arturo-Quiroga-MSFT/DBMS_Assistant_SK"
+  },
+  "icon": "resources/database.png",
   "engines": { "vscode": ">=1.85.0" },
   "categories": ["Other"],
   "activationEvents": [],
@@ -23,13 +29,14 @@
   "scripts": {
     "build": "tsc -p .",
     "watch": "tsc -w -p .",
-    "package": "vsce package"
+    "package": "vsce package",
+    "postinstall": "node scripts/ensure-icon.js"
   },
   "devDependencies": {
     "typescript": "^5.5.0",
     "@types/node": "^18.19.0",
     "@types/vscode": "^1.85.0",
-  "vsce": "^2.15.0"
+    "@vscode/vsce": "^3.0.0"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.0.0"

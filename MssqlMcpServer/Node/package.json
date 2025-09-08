@@ -40,7 +40,7 @@
     "shx": "^0.3.4",
     "typescript": "^5.5.0",
     "@types/vscode": "^1.70.0",
-  "vsce": "^2.19.0"
+  "@vscode/vsce": "^3.0.0"
   },
   "dependencies": {
     "@azure/identity": "^4.8.0",

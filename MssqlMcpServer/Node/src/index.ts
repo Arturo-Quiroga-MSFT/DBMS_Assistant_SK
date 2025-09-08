@@ -33,7 +33,7 @@ import { CreateTableTool } from "./tools/CreateTableTool.js";
 import { CreateIndexTool } from "./tools/CreateIndexTool.js";
 import { ListTableTool } from "./tools/ListTableTool.js";
 import { DropTableTool } from "./tools/DropTableTool.js";
-import { ClientSecretCredential } from "@azure/identity";
+import { DefaultAzureCredential, ClientSecretCredential, TokenCredential } from "@azure/identity";
 import { DescribeTableTool } from "./tools/DescribeTableTool.js";
 import { DiagnoseConnectionTool } from "./tools/DiagnoseConnectionTool.js";
 import { ListExternalUsersTool } from "./tools/ListExternalUsersTool.js";
@@ -61,57 +61,74 @@ function markReady() {
 
 // Function to create SQL config with fresh access token, returns token and expiry
 export async function createSqlConfig(): Promise<{ config: sql.config, token: string, expiresOn: Date }> {
-  // Read Azure service principal credentials from environment
-  const clientId = process.env.AZURE_CLIENT_ID;
+  const authMode = (process.env.PREFERRED_SQL_AUTH || 'access-token').toLowerCase();
+  const clientId = process.env.AZURE_CLIENT_ID; // may be used for SP secret OR selecting a specific user-assigned MI
   const clientSecret = process.env.AZURE_CLIENT_SECRET;
-  const tenantId = process.env.AZURE_TENANT_ID;
-  if (!clientId || !clientSecret || !tenantId) {
-    throw new Error('Missing AZURE_CLIENT_ID, AZURE_CLIENT_SECRET, or AZURE_TENANT_ID environment variables.');
+  const tenantId = process.env.AZURE_TENANT_ID; // optional when using managed identity
+
+  const hasSpSecret = !!(clientId && clientSecret && tenantId);
+  let credential: TokenCredential;
+
+  if (authMode === 'sp-secret') {
+    if (!hasSpSecret) {
+      throw new Error('PREFERRED_SQL_AUTH=sp-secret but AZURE_CLIENT_ID / AZURE_CLIENT_SECRET / AZURE_TENANT_ID not fully set.');
+    }
+    credential = new ClientSecretCredential(tenantId!, clientId!, clientSecret!);
+  } else {
+    // Managed Identity or chained default (env, workload identity, etc.)
+    // If AZURE_CLIENT_ID is set without secret inside ACA and a user-assigned MI is attached, DefaultAzureCredential will target that identity.
+    credential = new DefaultAzureCredential();
   }
-  const credential = new ClientSecretCredential(tenantId, clientId, clientSecret);
+
   const accessToken = await credential.getToken('https://database.windows.net/.default');
+  if (!accessToken?.token) {
+    throw new Error('Failed to acquire access token for Azure SQL');
+  }
+
   if (process.env.DEBUG_STARTUP?.toLowerCase() === 'true') {
     console.error('[token] acquired Azure SQL access token', {
-      expires: accessToken?.expiresOnTimestamp ? new Date(accessToken.expiresOnTimestamp).toISOString() : undefined,
-      length: accessToken?.token?.length,
-      preview: accessToken?.token?.slice(0, 20) + '…'
+      mode: authMode === 'sp-secret' ? 'service-principal-secret' : 'managed-or-default',
+      expires: accessToken.expiresOnTimestamp ? new Date(accessToken.expiresOnTimestamp).toISOString() : undefined,
+      length: accessToken.token.length,
+      preview: accessToken.token.slice(0, 20) + '…'
     });
   }
 
   const trustServerCertificate = process.env.TRUST_SERVER_CERTIFICATE?.toLowerCase() === 'true';
   const connectionTimeout = process.env.CONNECTION_TIMEOUT ? parseInt(process.env.CONNECTION_TIMEOUT, 10) : 30;
 
-  return {
-    config: ((): sql.config => {
-      const authMode = (process.env.PREFERRED_SQL_AUTH || 'access-token').toLowerCase();
-      const common: any = {
-        server: process.env.SERVER_NAME!,
-        database: process.env.DATABASE_NAME!,
-        port: 1433,
-        options: { encrypt: true, trustServerCertificate, enableArithAbort: true },
-        connectionTimeout: connectionTimeout * 1000,
-      };
-      if (authMode === 'sp-secret') {
-        if (process.env.DEBUG_STARTUP?.toLowerCase() === 'true') {
-          console.error('[auth] Using primary auth mode: service-principal-secret');
-        }
-        common.authentication = {
-          type: 'azure-active-directory-service-principal-secret',
-          options: { clientId, clientSecret, tenantId }
-        };
-      } else {
-        if (process.env.DEBUG_STARTUP?.toLowerCase() === 'true') {
-          console.error('[auth] Using primary auth mode: access-token');
-        }
-        common.authentication = {
-          type: 'azure-active-directory-access-token',
-          options: { token: accessToken?.token! }
-        };
+  const config: sql.config = (() => {
+    const common: any = {
+      server: process.env.SERVER_NAME!,
+      database: process.env.DATABASE_NAME!,
+      port: 1433,
+      options: { encrypt: true, trustServerCertificate, enableArithAbort: true },
+      connectionTimeout: connectionTimeout * 1000,
+    };
+    if (authMode === 'sp-secret') {
+      if (process.env.DEBUG_STARTUP?.toLowerCase() === 'true') {
+        console.error('[auth] Using service-principal-secret authentication');
       }
-      return common as sql.config;
-    })(),
-    token: accessToken?.token!,
-    expiresOn: accessToken?.expiresOnTimestamp ? new Date(accessToken.expiresOnTimestamp) : new Date(Date.now() + 30 * 60 * 1000)
+      common.authentication = {
+        type: 'azure-active-directory-service-principal-secret',
+        options: { clientId, clientSecret, tenantId }
+      };
+    } else {
+      if (process.env.DEBUG_STARTUP?.toLowerCase() === 'true') {
+        console.error('[auth] Using access-token authentication (managed identity / default credential chain)');
+      }
+      common.authentication = {
+        type: 'azure-active-directory-access-token',
+        options: { token: accessToken.token }
+      };
+    }
+    return common as sql.config;
+  })();
+
+  return {
+    config,
+    token: accessToken.token,
+    expiresOn: accessToken.expiresOnTimestamp ? new Date(accessToken.expiresOnTimestamp) : new Date(Date.now() + 30 * 60 * 1000)
   };
 }
 
