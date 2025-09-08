@@ -1,7 +1,25 @@
 {
   "name": "mssql-mcp-server",
+  "displayName": "MSSQL MCP Server",
+  "description": "A VS Code extension to start the MSSQL MCP Server for natural language database interaction.",
   "version": "1.1.0",
-  "main": "dist/index.js",
+  "publisher": "your-publisher-id",
+  "engines": {
+    "vscode": ">=1.70.0"
+  },
+  "categories": ["Other"],
+  "activationEvents": [
+    "onCommand:mssql-mcp-server.startServer"
+  ],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      {
+        "command": "mssql-mcp-server.startServer",
+        "title": "Start MSSQL MCP Server"
+      }
+    ]
+  },
   "bin": {
     "mssql-mcp-server": "dist/index.js"
   },
@@ -20,7 +38,9 @@
     "@types/jsonwebtoken": "^9.0.6",
     "@types/uuid": "^9.0.7",
     "shx": "^0.3.4",
-    "typescript": "^5.5.0"
+    "typescript": "^5.5.0",
+    "@types/vscode": "^1.70.0",
+  "vsce": "^2.19.0"
   },
   "dependencies": {
     "@azure/identity": "^4.8.0",

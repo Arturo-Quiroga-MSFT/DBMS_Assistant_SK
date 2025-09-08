@@ -1,0 +1,37 @@
+{
+  "name": "vscode-mssql-assistant",
+  "displayName": "MSSQL RDBMS Assistant",
+  "description": "Use the MSSQL MCP Server from inside VS Code with tool invocation and a table explorer.",
+  "version": "0.0.1",
+  "publisher": "your-publisher-id",
+  "engines": { "vscode": ">=1.85.0" },
+  "categories": ["Other"],
+  "activationEvents": [],
+  "main": "./dist/extension.js",
+  "contributes": {
+    "commands": [
+      { "command": "mssqlAssistant.start", "title": "MSSQL Assistant: Start / Connect" },
+      { "command": "mssqlAssistant.refreshTables", "title": "MSSQL Assistant: Refresh Tables" },
+      { "command": "mssqlAssistant.runTool", "title": "MSSQL Assistant: Run Tool" }
+    ],
+    "views": {
+      "explorer": [
+        { "id": "mssqlAssistant.tables", "name": "MSSQL Tables", "icon": "resources/database.svg" }
+      ]
+    }
+  },
+  "scripts": {
+    "build": "tsc -p .",
+    "watch": "tsc -w -p .",
+    "package": "vsce package"
+  },
+  "devDependencies": {
+    "typescript": "^5.5.0",
+    "@types/node": "^18.19.0",
+    "@types/vscode": "^1.85.0",
+  "vsce": "^2.15.0"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.0.0"
+  }
+}

@@ -1,7 +1,0 @@
-.vscode/**
-**/*.map
-**/*.ts
-node_modules/**
-!dist/**
-tsconfig.json
-README.md

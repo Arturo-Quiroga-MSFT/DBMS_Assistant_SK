@@ -9,6 +9,17 @@ import sql from "mssql";
 import { Server } from "@modelcontextprotocol/sdk/server/index.js";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
 import http from "http";
+// Added for /version endpoint (ESM-safe load of package.json)
+import { createRequire } from 'module';
+let serverVersion: string = 'unknown';
+try {
+  const requireLocal = createRequire(import.meta.url);
+  // eslint-disable-next-line @typescript-eslint/no-var-requires
+  const pkg = requireLocal('../package.json');
+  if (pkg?.version) serverVersion = pkg.version as string;
+} catch (err) {
+  // Silently fallback; version remains 'unknown'
+}
 import {
   CallToolRequestSchema,
   ListToolsRequestSchema,
@@ -482,6 +493,8 @@ function startHttpBridge() {
   allTools.forEach(t => toolMap.set(t.name, t as any));
 
   const serverHttp = http.createServer(async (req, res) => {
+    // Basic request line logging for diagnostics (can be toggled with env flag later)
+    try { console.error(`[HTTP] ${req.method} ${req.url}`); } catch {}
     // Basic CORS + JSON headers (safe defaults)
     res.setHeader("Access-Control-Allow-Origin", "*");
     res.setHeader("Access-Control-Allow-Headers", "Content-Type,Authorization,X-API-Key");
@@ -518,11 +531,23 @@ function startHttpBridge() {
         }
       }
 
+      if (req.url === "/version" && req.method === "GET") {
+        res.writeHead(200, { "Content-Type": "application/json" });
+        return res.end(JSON.stringify({
+          version: serverVersion,
+          tools: allTools.map(t => t.name),
+          toolCount: allTools.length,
+          authRequired: expectingApiKeyAuth,
+          gitCommit: process.env.GIT_COMMIT || null,
+          timestamp: new Date().toISOString()
+        }));
+      }
       if (req.url === "/tools" && req.method === "GET") {
         res.writeHead(200, { "Content-Type": "application/json" });
         return res.end(JSON.stringify({ tools: allTools.map(t => ({ name: t.name })) }));
       }
       if (req.url === "/call" && req.method === "POST") {
+        console.error('[HTTP] /call route hit');
         let body = "";
         req.on("data", chunk => { body += chunk; if (body.length > 1_000_000) req.destroy(); });
         req.on("end", async () => {
@@ -534,6 +559,7 @@ function startHttpBridge() {
             }
             const tool = toolMap.get(parsed.name);
             if (!tool) {
+              console.error(`[HTTP] unknown tool requested: ${parsed.name}`);
               res.writeHead(404, { "Content-Type": "application/json" });
               return res.end(JSON.stringify({ error: `Unknown tool: ${parsed.name}` }));
             }
@@ -542,13 +568,15 @@ function startHttpBridge() {
             res.writeHead(200, { "Content-Type": "application/json" });
             return res.end(JSON.stringify({ result }));
           } catch (e: any) {
+            console.error(`[HTTP] tool execution error: ${e?.message || e}`);
             res.writeHead(500, { "Content-Type": "application/json" });
             return res.end(JSON.stringify({ error: e?.message || String(e) }));
           }
         });
         return;
       }
-            // (Master DB diagnostic moved into ensureSqlConnection catch block)
+      // (Master DB diagnostic moved into ensureSqlConnection catch block)
+      console.error(`[HTTP] 404 fallback for ${req.method} ${req.url}`);
       res.writeHead(404, { "Content-Type": "application/json" });
       res.end(JSON.stringify({ error: "Not found" }));
     } catch (err: any) {
