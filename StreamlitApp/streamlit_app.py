@@ -180,7 +180,7 @@ def execute_query(nl_query: str) -> Dict[str, Any]:
             }
         
         # Execute the query
-        if conversion_result['query_type'] in ['SELECT', 'COUNT', 'DESCRIBE', 'LIST_TABLES']:
+        if conversion_result['query_type'] in ['SELECT', 'COUNT', 'DESCRIBE', 'LIST_TABLES', 'DATABASE_SCHEMA']:
             # Read query
             result_df = db.execute_query(sql_query)
             return {
@@ -273,6 +273,7 @@ def main():
     # Example queries
     with st.expander("💡 Example Queries"):
         st.markdown("""
+        - **"Show me the schema of the database"** - Display all tables with column counts (database overview)
         - **"Show me all companies"** - Display all records from the Company table
         - **"Count rows in loans"** - Get the number of records in the Loan table
         - **"Describe the customer table"** - Show the schema of the CustomerProfile table

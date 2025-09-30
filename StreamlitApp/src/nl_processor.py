@@ -39,6 +39,12 @@ class NLToSQLConverter:
                 r'(?:show|get) (?:the )?structure (?:of )?(?:the )?(.+?)(?:\s+table)?$',
                 r'what (?:are )?(?:the )?columns (?:in )?(?:the )?(.+?)(?:\s+table)?$'
             ],
+            'database_schema': [
+                r'(?:show|get|display) (?:me )?(?:the )?(?:database|db) schema$',
+                r'(?:show|get|display) (?:me )?(?:the )?schema (?:of )?(?:the )?(?:database|db)$',
+                r'what (?:is|are) (?:the )?(?:database|db) schema$',
+                r'(?:database|db) (?:schema|structure|overview)$'
+            ],
             'list_tables': [
                 r'(?:show|list|get) (?:all )?(?:the )?tables$',
                 r'what tables (?:are )?(?:in )?(?:the )?database$'
@@ -96,22 +102,56 @@ class NLToSQLConverter:
         return True, "Query appears safe"
     
     def extract_table_name(self, text: str) -> Optional[str]:
-        """Extract table name from natural language text"""
+        """Extract table name from natural language text with improved matching"""
         # Remove common words
         words = text.split()
-        stop_words = {'the', 'a', 'an', 'from', 'in', 'of', 'to', 'with', 'table', 'data'}
-        filtered_words = [w for w in words if w not in stop_words]
+        stop_words = {'the', 'a', 'an', 'from', 'in', 'of', 'to', 'with', 'table', 'data', 'rows', 'records'}
+        filtered_words = [w for w in words if w.lower() not in stop_words]
         
-        if filtered_words:
-            # Try to match against known tables
-            potential_table = filtered_words[0]
-            if self.table_info:
-                for table in self.table_info.keys():
-                    if potential_table.lower() in table.lower() or table.lower() in potential_table.lower():
-                        return table
-            return potential_table
+        if not filtered_words:
+            return None
         
-        return None
+        # Try to match against known tables with fuzzy matching
+        if self.table_info:
+            # Extract just table names without schema
+            available_tables = []
+            for full_table_name in self.table_info.keys():
+                if '.' in full_table_name:
+                    table_name = full_table_name.split('.')[-1]  # Get table name without schema
+                else:
+                    table_name = full_table_name
+                available_tables.append((table_name, full_table_name))
+            
+            # Try each filtered word
+            for word in filtered_words:
+                word_lower = word.lower()
+                
+                # Exact match first
+                for table_name, full_name in available_tables:
+                    if word_lower == table_name.lower():
+                        return full_name
+                
+                # Plural/singular matching
+                word_singular = word_lower.rstrip('s') if word_lower.endswith('s') else word_lower
+                word_plural = word_lower + 's' if not word_lower.endswith('s') else word_lower
+                
+                for table_name, full_name in available_tables:
+                    table_lower = table_name.lower()
+                    if (word_singular == table_lower or 
+                        word_plural == table_lower or
+                        word_lower in table_lower or 
+                        table_lower in word_lower):
+                        return full_name
+                
+                # Substring matching for common variations
+                # e.g., "companies" -> "Company", "loans" -> "Loan"
+                for table_name, full_name in available_tables:
+                    if (word_lower.startswith(table_name.lower()[:3]) and len(table_name) >= 3) or \
+                       (table_name.lower().startswith(word_lower[:3]) and len(word_lower) >= 3):
+                        return full_name
+        
+        # If no match found, return the first filtered word as fallback
+        return filtered_words[0]
     
     def convert_select_query(self, text: str) -> Optional[str]:
         """Convert natural language to SELECT query"""
@@ -120,8 +160,15 @@ class NLToSQLConverter:
             if match:
                 table_name = self.extract_table_name(match.group(1))
                 if table_name:
-                    # Add basic WHERE clause to prevent full table scans
-                    return f"SELECT TOP 100 * FROM [{table_name}]"
+                    # Handle schema.table format properly
+                    if '.' in table_name:
+                        # Already has schema
+                        formatted_table = f"[{table_name.split('.')[0]}].[{table_name.split('.')[1]}]"
+                    else:
+                        # Add default schema if needed
+                        formatted_table = f"[dbo].[{table_name}]"
+                    
+                    return f"SELECT TOP 100 * FROM {formatted_table}"
         
         return None
     
@@ -132,7 +179,13 @@ class NLToSQLConverter:
             if match:
                 table_name = self.extract_table_name(match.group(1))
                 if table_name:
-                    return f"SELECT COUNT(*) as record_count FROM [{table_name}]"
+                    # Handle schema.table format properly
+                    if '.' in table_name:
+                        formatted_table = f"[{table_name.split('.')[0]}].[{table_name.split('.')[1]}]"
+                    else:
+                        formatted_table = f"[dbo].[{table_name}]"
+                    
+                    return f"SELECT COUNT(*) as record_count FROM {formatted_table}"
         
         return None
     
@@ -143,6 +196,13 @@ class NLToSQLConverter:
             if match:
                 table_name = self.extract_table_name(match.group(1))
                 if table_name:
+                    # Extract just the table name without schema for INFORMATION_SCHEMA query
+                    if '.' in table_name:
+                        schema_name, actual_table_name = table_name.split('.', 1)
+                    else:
+                        schema_name = 'dbo'
+                        actual_table_name = table_name
+                    
                     return f"""
                     SELECT 
                         COLUMN_NAME as column_name,
@@ -151,9 +211,30 @@ class NLToSQLConverter:
                         CHARACTER_MAXIMUM_LENGTH as max_length,
                         COLUMN_DEFAULT as default_value
                     FROM INFORMATION_SCHEMA.COLUMNS 
-                    WHERE TABLE_NAME = '{table_name}'
+                    WHERE TABLE_NAME = '{actual_table_name}' AND TABLE_SCHEMA = '{schema_name}'
                     ORDER BY ORDINAL_POSITION
                     """
+        
+        return None
+    
+    def convert_database_schema_query(self, text: str) -> Optional[str]:
+        """Convert natural language to database schema overview query"""
+        for pattern in self.query_patterns['database_schema']:
+            if re.search(pattern, text, re.IGNORECASE):
+                return """
+                SELECT 
+                    t.TABLE_SCHEMA as schema_name,
+                    t.TABLE_NAME as table_name,
+                    COUNT(c.COLUMN_NAME) as column_count,
+                    t.TABLE_TYPE as table_type
+                FROM INFORMATION_SCHEMA.TABLES t
+                LEFT JOIN INFORMATION_SCHEMA.COLUMNS c 
+                    ON t.TABLE_SCHEMA = c.TABLE_SCHEMA 
+                    AND t.TABLE_NAME = c.TABLE_NAME
+                WHERE t.TABLE_TYPE = 'BASE TABLE'
+                GROUP BY t.TABLE_SCHEMA, t.TABLE_NAME, t.TABLE_TYPE
+                ORDER BY t.TABLE_SCHEMA, t.TABLE_NAME
+                """
         
         return None
     
@@ -177,12 +258,41 @@ class NLToSQLConverter:
         """Convert natural language to SQL query"""
         cleaned_text = self.clean_input(text)
         
-        # Try different conversion methods
+        # Check for "database schema" first - highest priority
+        if re.search(r'(?:database|db)\s+schema|schema\s+(?:of\s+)?(?:the\s+)?(?:database|db)', cleaned_text, re.IGNORECASE):
+            sql_query = self.convert_database_schema_query(cleaned_text)
+            if sql_query:
+                sql_query = sqlparse.format(sql_query.strip(), reindent=True, keyword_case='upper')
+                is_safe, safety_message = self.is_safe_query(sql_query)
+                return {
+                    'success': True,
+                    'sql_query': sql_query,
+                    'query_type': 'DATABASE_SCHEMA',
+                    'is_safe': is_safe,
+                    'safety_message': safety_message,
+                    'original_text': text
+                }
+        
+        # Check for "list tables" - second priority
+        if re.search(r'(?:show|list|get) (?:all )?(?:the )?tables', cleaned_text, re.IGNORECASE):
+            sql_query = self.convert_list_tables_query(cleaned_text)
+            if sql_query:
+                sql_query = sqlparse.format(sql_query.strip(), reindent=True, keyword_case='upper')
+                is_safe, safety_message = self.is_safe_query(sql_query)
+                return {
+                    'success': True,
+                    'sql_query': sql_query,
+                    'query_type': 'LIST_TABLES', 
+                    'is_safe': is_safe,
+                    'safety_message': safety_message,
+                    'original_text': text
+                }
+        
+        # Try different conversion methods in order
         converters = [
-            ('SELECT', self.convert_select_query),
-            ('COUNT', self.convert_count_query),
             ('DESCRIBE', self.convert_describe_query),
-            ('LIST_TABLES', self.convert_list_tables_query)
+            ('COUNT', self.convert_count_query),
+            ('SELECT', self.convert_select_query)
         ]
         
         for query_type, converter in converters:

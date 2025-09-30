@@ -7,6 +7,13 @@ import pandas as pd
 from typing import Optional, Dict, Any, List, Tuple
 from dotenv import load_dotenv
 import logging
+from urllib.parse import quote_plus
+try:
+    from sqlalchemy import create_engine, text
+    from sqlalchemy.pool import StaticPool
+    SQLALCHEMY_AVAILABLE = True
+except ImportError:
+    SQLALCHEMY_AVAILABLE = False
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -18,7 +25,9 @@ class AzureSQLConnection:
     def __init__(self):
         load_dotenv()
         self.connection: Optional[pyodbc.Connection] = None
+        self.engine = None
         self.connection_string = self._build_connection_string()
+        self._connection_active = False
         
     def _build_connection_string(self) -> str:
         """Build connection string from environment variables"""
@@ -46,34 +55,101 @@ class AzureSQLConnection:
         
         return conn_str
     
+    def _get_sqlalchemy_engine(self):
+        """Get or create SQLAlchemy engine for better pandas integration"""
+        if not SQLALCHEMY_AVAILABLE:
+            return None
+            
+        if self.engine is None:
+            server = os.getenv('SERVER_NAME')
+            database = os.getenv('DATABASE_NAME')
+            username = os.getenv('SQL_USER')
+            password = os.getenv('SQL_PASSWORD')
+            
+            # URL encode password to handle special characters
+            password_encoded = quote_plus(password)
+            
+            # Create SQLAlchemy connection string
+            connection_string = f"mssql+pyodbc://{username}:{password_encoded}@{server}/{database}?driver=ODBC+Driver+17+for+SQL+Server&Encrypt=yes&TrustServerCertificate=no"
+            
+            self.engine = create_engine(
+                connection_string,
+                poolclass=StaticPool,
+                pool_pre_ping=True,
+                pool_recycle=3600,
+                echo=False
+            )
+        
+        return self.engine
+    
     def connect(self) -> bool:
         """Establish connection to the database"""
         try:
-            if self.connection:
+            # Try SQLAlchemy first for better pandas integration
+            engine = self._get_sqlalchemy_engine()
+            if engine:
+                # Test the connection
+                with engine.connect() as conn:
+                    conn.execute(text("SELECT 1"))
+                logger.info("Successfully connected to Azure SQL Database (SQLAlchemy)")
+                self._connection_active = True
+                return True
+            
+            # Fallback to pyodbc
+            if self.connection and not self._connection_active:
                 self.close()
             
-            self.connection = pyodbc.connect(self.connection_string)
-            logger.info("Successfully connected to Azure SQL Database")
+            if not self.connection:
+                self.connection = pyodbc.connect(self.connection_string)
+                logger.info("Successfully connected to Azure SQL Database (pyodbc)")
+                self._connection_active = True
             return True
             
         except Exception as e:
             logger.error(f"Failed to connect to database: {str(e)}")
+            self._connection_active = False
             return False
     
     def close(self):
         """Close the database connection"""
         if self.connection:
-            self.connection.close()
+            try:
+                self.connection.close()
+            except:
+                pass
             self.connection = None
-            logger.info("Database connection closed")
+        
+        if self.engine:
+            try:
+                self.engine.dispose()
+            except:
+                pass
+            self.engine = None
+            
+        self._connection_active = False
+        logger.info("Database connection closed")
     
     def execute_query(self, query: str, params: Optional[Tuple] = None) -> pd.DataFrame:
         """Execute a SELECT query and return results as DataFrame"""
-        if not self.connection:
+        if not self._connection_active:
             if not self.connect():
                 raise Exception("Unable to establish database connection")
         
         try:
+            # Use SQLAlchemy engine if available for better pandas integration
+            engine = self._get_sqlalchemy_engine()
+            if engine:
+                if params:
+                    df = pd.read_sql(text(query), engine, params=params)
+                else:
+                    df = pd.read_sql(text(query), engine)
+                return df
+            
+            # Fallback to pyodbc connection
+            if not self.connection:
+                if not self.connect():
+                    raise Exception("Unable to establish database connection")
+            
             if params:
                 df = pd.read_sql(query, self.connection, params=params)
             else:
@@ -82,15 +158,35 @@ class AzureSQLConnection:
             
         except Exception as e:
             logger.error(f"Query execution failed: {str(e)}")
+            # Try to reconnect on failure
+            self._connection_active = False
             raise
     
     def execute_non_query(self, query: str, params: Optional[Tuple] = None) -> int:
         """Execute INSERT, UPDATE, DELETE, or DDL statements"""
-        if not self.connection:
+        if not self._connection_active:
             if not self.connect():
                 raise Exception("Unable to establish database connection")
         
         try:
+            # Use SQLAlchemy engine if available
+            engine = self._get_sqlalchemy_engine()
+            if engine:
+                with engine.connect() as conn:
+                    if params:
+                        result = conn.execute(text(query), params)
+                    else:
+                        result = conn.execute(text(query))
+                    conn.commit()
+                    rows_affected = result.rowcount if hasattr(result, 'rowcount') else 0
+                    logger.info(f"Query executed successfully. Rows affected: {rows_affected}")
+                    return rows_affected
+            
+            # Fallback to pyodbc
+            if not self.connection:
+                if not self.connect():
+                    raise Exception("Unable to establish database connection")
+            
             cursor = self.connection.cursor()
             if params:
                 cursor.execute(query, params)
@@ -105,8 +201,13 @@ class AzureSQLConnection:
             return rows_affected
             
         except Exception as e:
-            self.connection.rollback()
+            try:
+                if self.connection:
+                    self.connection.rollback()
+            except:
+                pass
             logger.error(f"Query execution failed: {str(e)}")
+            self._connection_active = False
             raise
     
     def get_tables(self) -> List[Dict[str, str]]:
